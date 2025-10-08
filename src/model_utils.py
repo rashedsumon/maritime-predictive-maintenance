@@ -10,11 +10,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
+
 # ---------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------
 MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, "maintenance_model.joblib")
+
 
 # ---------------------------------------------------------------------
 # Utility functions
@@ -87,14 +89,21 @@ def train_and_evaluate(X, y, save: bool = True) -> Tuple[Pipeline, Dict[str, Any
 # ---------------------------------------------------------------------
 def load_model(path: Optional[str] = None) -> Optional[Pipeline]:
     """
-    Load a saved model safely.
-    Returns None if file is missing or corrupted.
+    Safely load a saved model.
+    Returns None if file is missing, empty, or corrupted.
     """
     if path is None:
         path = MODEL_PATH
 
+    # Check existence
     if not os.path.exists(path):
         print(f"⚠️ Model file not found at: {path}")
+        return None
+
+    # Check file integrity before loading
+    file_size = os.path.getsize(path)
+    if file_size < 1024:  # < 1 KB => probably corrupted or empty
+        print(f"⚠️ Model file at {path} is too small ({file_size} bytes). Possibly incomplete or corrupted.")
         return None
 
     try:
@@ -102,10 +111,10 @@ def load_model(path: Optional[str] = None) -> Optional[Pipeline]:
         print(f"✅ Model loaded successfully from {path}")
         return model
     except EOFError:
-        print(f"❌ Model file at {path} appears to be incomplete or corrupted (EOFError).")
+        print(f"❌ EOFError: Model file at {path} is incomplete or truncated.")
         return None
     except Exception as e:
-        print(f"❌ Failed to load model: {e}")
+        print(f"❌ Failed to load model ({type(e).__name__}): {e}")
         return None
 
 
@@ -117,6 +126,7 @@ def predict_single(model, X_single):
     if model is None:
         raise ValueError("No valid model provided for prediction.")
 
+    # Handle DataFrame or numpy input
     if hasattr(X_single, "values") and X_single.shape[0] == 1:
         arr = X_single.values.reshape(1, -1)
     else:
